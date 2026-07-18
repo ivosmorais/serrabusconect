@@ -122,7 +122,7 @@ function MonitorScreen() {
   }, []);
 
   const sorted = useMemo(() => [...buses].sort((a, b) => a.etaSeconds - b.etaSeconds), [buses]);
-  const arriving = sorted.find((b) => b.etaSeconds < 60);
+  const arrivingList = sorted.filter((b) => b.etaSeconds < 60);
   const rotator = ROTATORS[rotatorIdx];
 
   const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -134,8 +134,10 @@ function MonitorScreen() {
     <main className="min-h-screen bg-radial-navy text-foreground flex flex-col">
       <TopBar timeStr={timeStr} dateStr={dateStr} />
 
-      {arriving ? (
-        <ArrivingHero bus={arriving} />
+      {arrivingList.length >= 2 ? (
+        <ArrivingSplit buses={arrivingList.slice(0, 2)} />
+      ) : arrivingList.length === 1 ? (
+        <ArrivingHero bus={arrivingList[0]} />
       ) : (
         <>
           <NextBusesSection buses={sorted} />
@@ -145,6 +147,43 @@ function MonitorScreen() {
 
       <BottomBar />
     </main>
+  );
+}
+
+function ArrivingSplit({ buses }: { buses: Bus[] }) {
+  return (
+    <section className="relative flex flex-1 flex-col overflow-hidden md:flex-row">
+      {buses.map((bus, i) => (
+        <ArrivingPane key={bus.line} bus={bus} variant={i === 0 ? "mint" : "cyan"} />
+      ))}
+    </section>
+  );
+}
+
+function ArrivingPane({ bus, variant }: { bus: Bus; variant: "mint" | "cyan" }) {
+  const secs = bus.etaSeconds.toString().padStart(2, "0");
+  const isMint = variant === "mint";
+  return (
+    <div
+      className={`relative flex flex-1 items-center justify-center overflow-hidden border-white/15 ${
+        isMint ? "bg-mint text-navy-deep" : "bg-cyan text-white"
+      } border-b md:border-b-0 md:border-r last:border-0`}
+    >
+      <div className="absolute inset-0 grid-lines opacity-20" />
+      <div className="animate-pulse-arrive relative z-10 px-4 text-center">
+        <p className="text-xs font-bold uppercase tracking-[0.35em] md:text-sm">
+          Ônibus chegando
+        </p>
+        <p className="mt-2 font-display text-[26vw] leading-none tracking-widest md:text-[11rem]">
+          {bus.line}
+        </p>
+        <p className="font-display text-3xl tracking-wider md:text-5xl">CHEGANDO</p>
+        <p className="mt-3 font-display text-5xl tabular-nums md:text-7xl">00:{secs}</p>
+        <p className="mt-2 font-display text-lg tracking-wide md:text-2xl">
+          {bus.destination}
+        </p>
+      </div>
+    </div>
   );
 }
 
