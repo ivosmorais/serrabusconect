@@ -128,6 +128,59 @@ function MonitorScreen() {
   const arrivingList = sorted.filter((b) => b.etaSeconds < 60);
   const rotator = ROTATORS[rotatorIdx];
 
+  const [voiceOn, setVoiceOn] = useState(false);
+  const lastAnnouncedArrivingRef = useRef<string>("");
+  const sortedRef = useRef(sorted);
+  useEffect(() => {
+    sortedRef.current = sorted;
+  }, [sorted]);
+
+  const speak = useCallback((text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "pt-BR";
+    u.rate = 0.95;
+    u.pitch = 1;
+    window.speechSynthesis.speak(u);
+  }, []);
+
+  const announceNext = useCallback(() => {
+    const list = sortedRef.current.slice(0, 3);
+    if (list.length === 0) return;
+    const parts = list.map((b) => {
+      if (b.etaSeconds < 60) {
+        return `Linha ${b.line} para ${b.destination}, chegando agora.`;
+      }
+      const min = Math.max(1, Math.round(b.etaSeconds / 60));
+      return `Linha ${b.line} para ${b.destination}, em ${min} ${min === 1 ? "minuto" : "minutos"}.`;
+    });
+    speak(`Próximos ônibus no Terminal Laranjeiras. ${parts.join(" ")}`);
+  }, [speak]);
+
+  // Periodic announcement every 2 minutes.
+  useEffect(() => {
+    if (!voiceOn) return;
+    announceNext();
+    const id = setInterval(announceNext, 2 * 60 * 1000);
+    return () => {
+      clearInterval(id);
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [voiceOn, announceNext]);
+
+  // Immediate announcement when a bus is arriving (ETA < 1 min).
+  useEffect(() => {
+    if (!voiceOn) return;
+    const key = arrivingList.map((b) => b.line).join(",");
+    if (!key || key === lastAnnouncedArrivingRef.current) return;
+    lastAnnouncedArrivingRef.current = key;
+    const names = arrivingList.map((b) => `Linha ${b.line} para ${b.destination}`).join(", e ");
+    speak(`Atenção. ${names}, chegando ao ponto agora.`);
+  }, [arrivingList, voiceOn, speak]);
+
   const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   const dateStr = now
     .toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
@@ -135,7 +188,22 @@ function MonitorScreen() {
 
   return (
     <main className="min-h-screen bg-radial-navy text-foreground flex flex-col">
-      <TopBar timeStr={timeStr} dateStr={dateStr} />
+      <TopBar
+        timeStr={timeStr}
+        dateStr={dateStr}
+        voiceOn={voiceOn}
+        onToggleVoice={() => {
+          setVoiceOn((v) => {
+            const next = !v;
+            if (!next && typeof window !== "undefined" && "speechSynthesis" in window) {
+              window.speechSynthesis.cancel();
+            }
+            return next;
+          });
+        }}
+        onAnnounceNow={announceNext}
+      />
+
 
       {arrivingList.length >= 2 ? (
         <ArrivingSplit buses={arrivingList.slice(0, 2)} />
