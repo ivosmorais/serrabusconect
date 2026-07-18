@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bus,
+  Bus as BusIcon,
   Cloud,
   Wifi,
   AlertTriangle,
