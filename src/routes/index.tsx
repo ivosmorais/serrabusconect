@@ -154,7 +154,7 @@ function TopBar({ timeStr, dateStr }: { timeStr: string; dateStr: string }) {
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-md bg-mint text-navy-deep">
-            <Bus className="h-6 w-6" strokeWidth={2.5} />
+            <BusIcon className="h-6 w-6" strokeWidth={2.5} />
           </div>
           <div className="leading-tight">
             <p className="font-display text-2xl tracking-wider text-mint">SERRA SMARTBUS</p>
