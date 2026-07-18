@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bus as BusIcon,
   Cloud,
@@ -11,7 +11,10 @@ import {
   MapPin,
   Signal,
   ShieldAlert,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
