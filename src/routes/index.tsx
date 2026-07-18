@@ -258,10 +258,22 @@ function ArrivingPane({ bus, variant }: { bus: Bus; variant: "mint" | "cyan" }) 
   );
 }
 
-function TopBar({ timeStr, dateStr }: { timeStr: string; dateStr: string }) {
+function TopBar({
+  timeStr,
+  dateStr,
+  voiceOn,
+  onToggleVoice,
+  onAnnounceNow,
+}: {
+  timeStr: string;
+  dateStr: string;
+  voiceOn: boolean;
+  onToggleVoice: () => void;
+  onAnnounceNow: () => void;
+}) {
   return (
     <header className="w-full border-b border-white/10 bg-navy-deep/60 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-md bg-mint text-navy-deep">
             <BusIcon className="h-6 w-6" strokeWidth={2.5} />
@@ -287,14 +299,45 @@ function TopBar({ timeStr, dateStr }: { timeStr: string; dateStr: string }) {
             <span className="font-medium">Online</span>
           </div>
         </div>
-        <div className="text-right leading-tight">
-          <p className="font-display text-4xl tabular-nums text-white">{timeStr}</p>
-          <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">{dateStr}</p>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onToggleVoice}
+              aria-label={voiceOn ? "Desativar anúncios por voz" : "Ativar anúncios por voz"}
+              aria-pressed={voiceOn}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] transition ${
+                voiceOn
+                  ? "border-mint bg-mint text-navy-deep"
+                  : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+              }`}
+            >
+              {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              <span className="hidden sm:inline">{voiceOn ? "Voz ativa" : "Voz"}</span>
+            </button>
+            {voiceOn ? (
+              <button
+                type="button"
+                onClick={onAnnounceNow}
+                aria-label="Anunciar próximos ônibus agora"
+                className="hidden min-h-11 items-center rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/80 hover:bg-white/10 sm:inline-flex"
+              >
+                Anunciar
+              </button>
+            ) : null}
+          </div>
+          <div className="text-right leading-tight">
+            <p className="font-display text-4xl tabular-nums text-white">{timeStr}</p>
+            <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">
+              {dateStr}
+            </p>
+          </div>
         </div>
       </div>
     </header>
   );
 }
+
 
 function NextBusesSection({ buses }: { buses: Bus[] }) {
   return (
