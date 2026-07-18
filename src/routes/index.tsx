@@ -1,24 +1,396 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Bus,
+  Cloud,
+  Wifi,
+  AlertTriangle,
+  Syringe,
+  Calendar,
+  QrCode,
+  MapPin,
+  Signal,
+  ShieldAlert,
+} from "lucide-react";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "Serra SmartBus — Ponto Terminal Laranjeiras" },
+      {
+        name: "description",
+        content:
+          "Monitor inteligente do transporte público da Serra em tempo real, com alertas oficiais e comunicados da Prefeitura.",
+      },
+    ],
+  }),
+  component: MonitorScreen,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+type Bus = {
+  line: string;
+  destination: string;
+  etaSeconds: number;
+};
+
+const INITIAL_BUSES: Bus[] = [
+  { line: "523", destination: "Terminal Laranjeiras", etaSeconds: 60 },
+  { line: "507", destination: "Centro / Vitória", etaSeconds: 5 * 60 },
+  { line: "814", destination: "Jacaraípe", etaSeconds: 11 * 60 },
+  { line: "850", destination: "Serra Dourada", etaSeconds: 18 * 60 },
+];
+
+type Rotator =
+  | { kind: "alert"; title: string; body: string; phone: string }
+  | { kind: "campaign"; tag: string; title: string; body: string; when: string }
+  | { kind: "event"; tag: string; title: string; place: string; when: string }
+  | { kind: "ad"; tag: string; title: string; body: string };
+
+const ROTATORS: Rotator[] = [
+  {
+    kind: "campaign",
+    tag: "Secretaria de Saúde",
+    title: "Vacinação contra a Gripe",
+    body: "Procure a unidade de saúde mais próxima. Leve documento e cartão de vacina.",
+    when: "Sábado · 08h às 16h",
+  },
+  {
+    kind: "alert",
+    title: "Chuvas intensas nas próximas horas",
+    body: "Evite áreas de risco e alagamentos. Em caso de emergência, ligue para a Defesa Civil.",
+    phone: "199",
+  },
+  {
+    kind: "event",
+    tag: "Cultura",
+    title: "Festival Cultural da Serra",
+    place: "Praça Central · Entrada gratuita",
+    when: "Sexta a Domingo · 18h",
+  },
+  {
+    kind: "campaign",
+    tag: "Educação",
+    title: "Matrículas abertas na Rede Municipal",
+    body: "Garanta a vaga do seu filho na escola mais próxima de casa.",
+    when: "Até 30 de novembro",
+  },
+  {
+    kind: "ad",
+    tag: "Turismo Serra",
+    title: "Conheça as praias de Jacaraípe",
+    body: "Roteiros, hospedagem e gastronomia local no portal da Prefeitura.",
+  },
+];
+
+function formatEta(seconds: number) {
+  if (seconds < 60) return { big: seconds.toString().padStart(2, "0"), unit: "SEG" };
+  const min = Math.floor(seconds / 60);
+  return { big: min.toString(), unit: min === 1 ? "MIN" : "MIN" };
+}
+
+function useClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
+
+function MonitorScreen() {
+  const now = useClock();
+  const [buses, setBuses] = useState<Bus[]>(INITIAL_BUSES);
+  const [rotatorIdx, setRotatorIdx] = useState(0);
+
+  // Tick down ETAs every second; reset when it reaches 0.
+  useEffect(() => {
+    const id = setInterval(() => {
+      setBuses((prev) =>
+        prev.map((b) => ({
+          ...b,
+          etaSeconds: b.etaSeconds <= 0 ? 20 * 60 + Math.floor(Math.random() * 300) : b.etaSeconds - 1,
+        })),
+      );
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Rotate secondary content every 8s.
+  useEffect(() => {
+    const id = setInterval(() => setRotatorIdx((i) => (i + 1) % ROTATORS.length), 8000);
+    return () => clearInterval(id);
+  }, []);
+
+  const sorted = useMemo(() => [...buses].sort((a, b) => a.etaSeconds - b.etaSeconds), [buses]);
+  const arriving = sorted.find((b) => b.etaSeconds < 60);
+  const rotator = ROTATORS[rotatorIdx];
+
+  const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = now
+    .toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
+    .replace(/^./, (c) => c.toUpperCase());
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
+    <main className="min-h-screen bg-radial-navy text-foreground flex flex-col">
+      <TopBar timeStr={timeStr} dateStr={dateStr} />
+
+      {arriving ? (
+        <ArrivingHero bus={arriving} />
+      ) : (
+        <>
+          <NextBusesSection buses={sorted} />
+          <RotatorSection rotator={rotator} />
+        </>
+      )}
+
+      <BottomBar />
+    </main>
+  );
+}
+
+function TopBar({ timeStr, dateStr }: { timeStr: string; dateStr: string }) {
+  return (
+    <header className="w-full border-b border-white/10 bg-navy-deep/60 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-md bg-mint text-navy-deep">
+            <Bus className="h-6 w-6" strokeWidth={2.5} />
+          </div>
+          <div className="leading-tight">
+            <p className="font-display text-2xl tracking-wider text-mint">SERRA SMARTBUS</p>
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/60">
+              Prefeitura da Serra · ES
+            </p>
+          </div>
+        </div>
+        <div className="hidden items-center gap-6 text-white/80 md:flex">
+          <div className="flex items-center gap-2 text-sm">
+            <MapPin className="h-4 w-4 text-mint" />
+            <span className="font-medium">Terminal Laranjeiras · Plataforma B</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Cloud className="h-4 w-4 text-mint" />
+            <span className="font-semibold">26°C</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Signal className="h-4 w-4 text-success" />
+            <span className="font-medium">Online</span>
+          </div>
+        </div>
+        <div className="text-right leading-tight">
+          <p className="font-display text-4xl tabular-nums text-white">{timeStr}</p>
+          <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">{dateStr}</p>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function NextBusesSection({ buses }: { buses: Bus[] }) {
+  return (
+    <section className="w-full grid-lines">
+      <div className="mx-auto w-full max-w-7xl px-6 py-8">
+        <div className="mb-5 flex items-end justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-mint">
+              Tempo real
+            </p>
+            <h1 className="font-display text-5xl leading-none tracking-wider text-white md:text-6xl">
+              PRÓXIMOS ÔNIBUS
+            </h1>
+          </div>
+          <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/70 md:flex">
+            <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+            Atualizado agora
+          </div>
+        </div>
+
+        <ul className="space-y-3">
+          {buses.map((bus, i) => (
+            <BusRow key={bus.line} bus={bus} index={i} />
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function BusRow({ bus, index }: { bus: Bus; index: number }) {
+  const eta = formatEta(bus.etaSeconds);
+  const isSoon = bus.etaSeconds < 5 * 60;
+  return (
+    <li
+      className="animate-slide-up grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 md:gap-6 md:px-6 md:py-5"
+      style={{ animationDelay: `${index * 80}ms` }}
     >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+      <div
+        className={`grid h-16 w-20 place-items-center rounded-xl font-display text-3xl tracking-wider md:h-20 md:w-28 md:text-4xl ${
+          isSoon ? "bg-mint text-navy-deep" : "bg-navy text-white"
+        }`}
+      >
+        {bus.line}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/50">Destino</p>
+        <p className="truncate font-display text-2xl leading-tight tracking-wide text-white md:text-3xl">
+          {bus.destination}
+        </p>
+      </div>
+      <div className="flex items-baseline gap-1 text-right">
+        <span
+          className={`font-display text-5xl leading-none tabular-nums md:text-6xl ${
+            isSoon ? "text-mint" : "text-white"
+          }`}
+        >
+          {eta.big}
+        </span>
+        <span className="font-display text-lg tracking-widest text-white/60">{eta.unit}</span>
+      </div>
+    </li>
+  );
+}
+
+function ArrivingHero({ bus }: { bus: Bus }) {
+  const secs = bus.etaSeconds.toString().padStart(2, "0");
+  return (
+    <section className="relative flex flex-1 items-center justify-center overflow-hidden bg-mint text-navy-deep">
+      <div className="absolute inset-0 grid-lines opacity-20" />
+      <div className="animate-pulse-arrive relative z-10 px-6 text-center">
+        <p className="text-sm font-bold uppercase tracking-[0.4em] md:text-base">
+          Ônibus chegando ao ponto
+        </p>
+        <p className="mt-4 font-display text-[22vw] leading-none tracking-widest md:text-[14rem]">
+          {bus.line}
+        </p>
+        <p className="font-display text-4xl tracking-wider md:text-6xl">CHEGANDO</p>
+        <p className="mt-6 font-display text-7xl tabular-nums md:text-9xl">00:{secs}</p>
+        <p className="mt-4 font-display text-xl tracking-wide md:text-3xl">
+          {bus.destination}
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function RotatorSection({ rotator }: { rotator: Rotator }) {
+  return (
+    <section className="w-full flex-1 border-t border-white/10 bg-navy-deep/40">
+      <div className="mx-auto w-full max-w-7xl px-6 py-8">
+        <div key={JSON.stringify(rotator)} className="animate-slide-up">
+          {rotator.kind === "alert" && <AlertCard r={rotator} />}
+          {rotator.kind === "campaign" && <CampaignCard r={rotator} />}
+          {rotator.kind === "event" && <EventCard r={rotator} />}
+          {rotator.kind === "ad" && <AdCard r={rotator} />}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AlertCard({ r }: { r: Extract<Rotator, { kind: "alert" }> }) {
+  return (
+    <article className="relative overflow-hidden rounded-3xl border border-alert/40 bg-gradient-to-br from-alert/25 via-alert/10 to-transparent p-6 md:p-8">
+      <div className="flex items-start gap-4">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-alert text-white shadow-lg">
+          <AlertTriangle className="h-7 w-7" strokeWidth={2.5} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-alert">
+            Alerta Defesa Civil
+          </p>
+          <h2 className="mt-1 font-display text-4xl leading-tight tracking-wide text-white md:text-5xl">
+            {r.title}
+          </h2>
+          <p className="mt-3 max-w-3xl text-lg font-medium text-white/85">{r.body}</p>
+          <div className="mt-5 inline-flex items-center gap-3 rounded-xl bg-white/10 px-4 py-2">
+            <ShieldAlert className="h-5 w-5 text-alert" />
+            <span className="text-sm font-semibold text-white/70">Defesa Civil</span>
+            <span className="font-display text-3xl tabular-nums text-white">{r.phone}</span>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CampaignCard({ r }: { r: Extract<Rotator, { kind: "campaign" }> }) {
+  return (
+    <article className="rounded-3xl border border-mint/30 bg-gradient-to-br from-mint/15 via-cyan/10 to-transparent p-6 md:p-8">
+      <div className="flex items-start gap-4">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-mint text-navy-deep">
+          <Syringe className="h-7 w-7" strokeWidth={2.5} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-mint">{r.tag}</p>
+          <h2 className="mt-1 font-display text-4xl leading-tight tracking-wide text-white md:text-5xl">
+            {r.title}
+          </h2>
+          <p className="mt-3 max-w-3xl text-lg font-medium text-white/85">{r.body}</p>
+          <p className="mt-4 font-display text-2xl tracking-wider text-mint">{r.when}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function EventCard({ r }: { r: Extract<Rotator, { kind: "event" }> }) {
+  return (
+    <article className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan/20 via-navy/40 to-transparent p-6 md:p-8">
+      <div className="flex items-start gap-4">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-cyan text-white">
+          <Calendar className="h-7 w-7" strokeWidth={2.5} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan">{r.tag}</p>
+          <h2 className="mt-1 font-display text-4xl leading-tight tracking-wide text-white md:text-5xl">
+            {r.title}
+          </h2>
+          <p className="mt-3 text-lg font-medium text-white/85">{r.place}</p>
+          <p className="mt-2 font-display text-2xl tracking-wider text-mint">{r.when}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function AdCard({ r }: { r: Extract<Rotator, { kind: "ad" }> }) {
+  return (
+    <article className="flex items-center justify-between gap-6 rounded-3xl border border-white/10 bg-white/5 p-6 md:p-8">
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-[0.3em] text-white/50">{r.tag}</p>
+        <h2 className="mt-1 font-display text-4xl leading-tight tracking-wide text-white md:text-5xl">
+          {r.title}
+        </h2>
+        <p className="mt-3 max-w-2xl text-lg font-medium text-white/85">{r.body}</p>
+      </div>
+      <div className="hidden shrink-0 flex-col items-center gap-2 rounded-2xl bg-white p-4 md:flex">
+        <QrCode className="h-24 w-24 text-navy-deep" strokeWidth={1.5} />
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-navy-deep">
+          serra.es.gov.br
+        </span>
+      </div>
+    </article>
+  );
+}
+
+function BottomBar() {
+  return (
+    <footer className="mt-auto border-t border-white/10 bg-navy-deep/80 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-6 py-3">
+        <div className="flex items-center gap-2 text-xs text-white/60">
+          <Wifi className="h-4 w-4 text-mint" />
+          <span className="font-medium">Monitor #ML-042 · v2.4.1</span>
+        </div>
+        <div className="hidden overflow-hidden md:block">
+          <div className="animate-marquee whitespace-nowrap text-xs font-medium uppercase tracking-[0.25em] text-white/50">
+            Aponte a câmera do celular para o QR Code · Baixe o app ÔnibusGV · Denuncie irregularidades no portal 156 · Serra + Conectada · Prefeitura da Serra · &nbsp;&nbsp;&nbsp;
+            Aponte a câmera do celular para o QR Code · Baixe o app ÔnibusGV · Denuncie irregularidades no portal 156 · Serra + Conectada · Prefeitura da Serra · &nbsp;&nbsp;&nbsp;
+          </div>
+        </div>
+        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-mint">
+          Smart City · Serra
+        </div>
+      </div>
+    </footer>
   );
 }
