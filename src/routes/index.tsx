@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bus as BusIcon,
   Cloud,
@@ -11,7 +11,10 @@ import {
   MapPin,
   Signal,
   ShieldAlert,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -125,6 +128,59 @@ function MonitorScreen() {
   const arrivingList = sorted.filter((b) => b.etaSeconds < 60);
   const rotator = ROTATORS[rotatorIdx];
 
+  const [voiceOn, setVoiceOn] = useState(false);
+  const lastAnnouncedArrivingRef = useRef<string>("");
+  const sortedRef = useRef(sorted);
+  useEffect(() => {
+    sortedRef.current = sorted;
+  }, [sorted]);
+
+  const speak = useCallback((text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "pt-BR";
+    u.rate = 0.95;
+    u.pitch = 1;
+    window.speechSynthesis.speak(u);
+  }, []);
+
+  const announceNext = useCallback(() => {
+    const list = sortedRef.current.slice(0, 3);
+    if (list.length === 0) return;
+    const parts = list.map((b) => {
+      if (b.etaSeconds < 60) {
+        return `Linha ${b.line} para ${b.destination}, chegando agora.`;
+      }
+      const min = Math.max(1, Math.round(b.etaSeconds / 60));
+      return `Linha ${b.line} para ${b.destination}, em ${min} ${min === 1 ? "minuto" : "minutos"}.`;
+    });
+    speak(`Próximos ônibus no Terminal Laranjeiras. ${parts.join(" ")}`);
+  }, [speak]);
+
+  // Periodic announcement every 2 minutes.
+  useEffect(() => {
+    if (!voiceOn) return;
+    announceNext();
+    const id = setInterval(announceNext, 2 * 60 * 1000);
+    return () => {
+      clearInterval(id);
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [voiceOn, announceNext]);
+
+  // Immediate announcement when a bus is arriving (ETA < 1 min).
+  useEffect(() => {
+    if (!voiceOn) return;
+    const key = arrivingList.map((b) => b.line).join(",");
+    if (!key || key === lastAnnouncedArrivingRef.current) return;
+    lastAnnouncedArrivingRef.current = key;
+    const names = arrivingList.map((b) => `Linha ${b.line} para ${b.destination}`).join(", e ");
+    speak(`Atenção. ${names}, chegando ao ponto agora.`);
+  }, [arrivingList, voiceOn, speak]);
+
   const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   const dateStr = now
     .toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
@@ -132,7 +188,22 @@ function MonitorScreen() {
 
   return (
     <main className="min-h-screen bg-radial-navy text-foreground flex flex-col">
-      <TopBar timeStr={timeStr} dateStr={dateStr} />
+      <TopBar
+        timeStr={timeStr}
+        dateStr={dateStr}
+        voiceOn={voiceOn}
+        onToggleVoice={() => {
+          setVoiceOn((v) => {
+            const next = !v;
+            if (!next && typeof window !== "undefined" && "speechSynthesis" in window) {
+              window.speechSynthesis.cancel();
+            }
+            return next;
+          });
+        }}
+        onAnnounceNow={announceNext}
+      />
+
 
       {arrivingList.length >= 2 ? (
         <ArrivingSplit buses={arrivingList.slice(0, 2)} />
@@ -187,10 +258,22 @@ function ArrivingPane({ bus, variant }: { bus: Bus; variant: "mint" | "cyan" }) 
   );
 }
 
-function TopBar({ timeStr, dateStr }: { timeStr: string; dateStr: string }) {
+function TopBar({
+  timeStr,
+  dateStr,
+  voiceOn,
+  onToggleVoice,
+  onAnnounceNow,
+}: {
+  timeStr: string;
+  dateStr: string;
+  voiceOn: boolean;
+  onToggleVoice: () => void;
+  onAnnounceNow: () => void;
+}) {
   return (
     <header className="w-full border-b border-white/10 bg-navy-deep/60 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-md bg-mint text-navy-deep">
             <BusIcon className="h-6 w-6" strokeWidth={2.5} />
@@ -216,14 +299,45 @@ function TopBar({ timeStr, dateStr }: { timeStr: string; dateStr: string }) {
             <span className="font-medium">Online</span>
           </div>
         </div>
-        <div className="text-right leading-tight">
-          <p className="font-display text-4xl tabular-nums text-white">{timeStr}</p>
-          <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">{dateStr}</p>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onToggleVoice}
+              aria-label={voiceOn ? "Desativar anúncios por voz" : "Ativar anúncios por voz"}
+              aria-pressed={voiceOn}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] transition ${
+                voiceOn
+                  ? "border-mint bg-mint text-navy-deep"
+                  : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+              }`}
+            >
+              {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              <span className="hidden sm:inline">{voiceOn ? "Voz ativa" : "Voz"}</span>
+            </button>
+            {voiceOn ? (
+              <button
+                type="button"
+                onClick={onAnnounceNow}
+                aria-label="Anunciar próximos ônibus agora"
+                className="hidden min-h-11 items-center rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/80 hover:bg-white/10 sm:inline-flex"
+              >
+                Anunciar
+              </button>
+            ) : null}
+          </div>
+          <div className="text-right leading-tight">
+            <p className="font-display text-4xl tabular-nums text-white">{timeStr}</p>
+            <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">
+              {dateStr}
+            </p>
+          </div>
         </div>
       </div>
     </header>
   );
 }
+
 
 function NextBusesSection({ buses }: { buses: Bus[] }) {
   return (
