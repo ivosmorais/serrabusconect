@@ -377,6 +377,11 @@ function TopBar({
                 Anunciar
               </button>
             ) : null}
+            <AccessibilitySettings
+              voiceOn={voiceOn}
+              voiceIntervalMinutes={voiceIntervalMinutes}
+              onChangeVoiceInterval={onChangeVoiceInterval}
+            />
           </div>
           <div className="text-right leading-tight">
             <p className="font-display text-4xl tabular-nums text-white">{timeStr}</p>
