@@ -238,6 +238,7 @@ function MonitorScreen() {
         timeStr={timeStr}
         dateStr={dateStr}
         voiceOn={voiceOn}
+        voiceIntervalMinutes={voiceIntervalMinutes}
         onToggleVoice={() => {
           setVoiceOn((v) => {
             const next = !v;
@@ -248,6 +249,7 @@ function MonitorScreen() {
           });
         }}
         onAnnounceNow={announceNext}
+        onChangeVoiceInterval={setVoiceIntervalMinutes}
       />
 
 
