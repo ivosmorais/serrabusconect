@@ -473,6 +473,7 @@ function TopBar({
             <AccessibilitySettings
               voiceOn={voiceOn}
               voiceIntervalMinutes={voiceIntervalMinutes}
+              onToggleVoice={onToggleVoice}
               onChangeVoiceInterval={onChangeVoiceInterval}
             />
           </div>
