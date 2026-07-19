@@ -204,18 +204,18 @@ function MonitorScreen() {
     speak(`Próximos ônibus no Terminal Laranjeiras. ${parts.join(" ")}`);
   }, [speak]);
 
-  // Periodic announcement every 2 minutes.
+  // Periodic announcement based on the configured interval.
   useEffect(() => {
     if (!voiceOn) return;
     announceNext();
-    const id = setInterval(announceNext, 2 * 60 * 1000);
+    const id = setInterval(announceNext, voiceIntervalMinutes * 60 * 1000);
     return () => {
       clearInterval(id);
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
     };
-  }, [voiceOn, announceNext]);
+  }, [voiceOn, announceNext, voiceIntervalMinutes]);
 
   // Immediate announcement when a bus is arriving (ETA < 1 min).
   useEffect(() => {
