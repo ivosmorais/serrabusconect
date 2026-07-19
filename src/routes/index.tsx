@@ -13,7 +13,24 @@ import {
   ShieldAlert,
   Volume2,
   VolumeX,
+  Settings,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 
 export const Route = createFileRoute("/")({
@@ -129,6 +146,36 @@ function MonitorScreen() {
   const rotator = ROTATORS[rotatorIdx];
 
   const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceIntervalMinutes, setVoiceIntervalMinutes] = useState(2);
+
+  // Load accessibility preferences from localStorage after hydration.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("serra-smartbus-accessibility");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.voiceIntervalMinutes === "number") {
+          setVoiceIntervalMinutes(parsed.voiceIntervalMinutes);
+        }
+        if (typeof parsed.voiceOn === "boolean") {
+          setVoiceOn(parsed.voiceOn);
+        }
+      } catch {
+        // ignore malformed storage
+      }
+    }
+  }, []);
+
+  // Persist accessibility preferences whenever they change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      "serra-smartbus-accessibility",
+      JSON.stringify({ voiceOn, voiceIntervalMinutes }),
+    );
+  }, [voiceOn, voiceIntervalMinutes]);
+
   const lastAnnouncedArrivingRef = useRef<string>("");
   const sortedRef = useRef(sorted);
   useEffect(() => {
@@ -158,18 +205,18 @@ function MonitorScreen() {
     speak(`Próximos ônibus no Terminal Laranjeiras. ${parts.join(" ")}`);
   }, [speak]);
 
-  // Periodic announcement every 2 minutes.
+  // Periodic announcement based on the configured interval.
   useEffect(() => {
     if (!voiceOn) return;
     announceNext();
-    const id = setInterval(announceNext, 2 * 60 * 1000);
+    const id = setInterval(announceNext, voiceIntervalMinutes * 60 * 1000);
     return () => {
       clearInterval(id);
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
     };
-  }, [voiceOn, announceNext]);
+  }, [voiceOn, announceNext, voiceIntervalMinutes]);
 
   // Immediate announcement when a bus is arriving (ETA < 1 min).
   useEffect(() => {
@@ -192,6 +239,7 @@ function MonitorScreen() {
         timeStr={timeStr}
         dateStr={dateStr}
         voiceOn={voiceOn}
+        voiceIntervalMinutes={voiceIntervalMinutes}
         onToggleVoice={() => {
           setVoiceOn((v) => {
             const next = !v;
@@ -202,6 +250,7 @@ function MonitorScreen() {
           });
         }}
         onAnnounceNow={announceNext}
+        onChangeVoiceInterval={setVoiceIntervalMinutes}
       />
 
 
@@ -258,18 +307,102 @@ function ArrivingPane({ bus, variant }: { bus: Bus; variant: "mint" | "cyan" }) 
   );
 }
 
+function AccessibilitySettings({
+  voiceOn,
+  voiceIntervalMinutes,
+  onToggleVoice,
+  onChangeVoiceInterval,
+}: {
+  voiceOn: boolean;
+  voiceIntervalMinutes: number;
+  onToggleVoice: () => void;
+  onChangeVoiceInterval: (minutes: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          aria-label="Abrir configurações de acessibilidade"
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/80 transition hover:bg-white/10"
+        >
+          <Settings className="h-4 w-4" />
+          <span className="hidden sm:inline">Acessibilidade</span>
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md border-white/10 bg-navy-deep text-foreground">
+        <DialogHeader>
+          <DialogTitle className="font-display text-3xl tracking-wide text-white">
+            Acessibilidade
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-6 py-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="voice-toggle" className="text-base text-white">
+                Anúncios por voz
+              </Label>
+              <Switch
+                id="voice-toggle"
+                checked={voiceOn}
+                onCheckedChange={onToggleVoice}
+                aria-label="Ativar ou desativar anúncios por voz"
+              />
+            </div>
+            <p className="text-sm text-white/60">
+              Quando ativados, os próximos ônibus são anunciados em voz alta em português.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <Label htmlFor="voice-interval" className="text-base text-white">
+              Intervalo entre anúncios
+            </Label>
+            <Select
+              value={voiceIntervalMinutes.toString()}
+              onValueChange={(value) => onChangeVoiceInterval(Number(value))}
+            >
+              <SelectTrigger
+                id="voice-interval"
+                aria-label="Intervalo entre anúncios de voz"
+                className="border-white/10 bg-white/5 text-white focus:ring-mint"
+              >
+                <SelectValue placeholder="Selecione o intervalo" />
+              </SelectTrigger>
+              <SelectContent className="border-white/10 bg-navy-deep text-white">
+                <SelectItem value="1">1 minuto</SelectItem>
+                <SelectItem value="2">2 minutos</SelectItem>
+                <SelectItem value="3">3 minutos</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-white/60">
+              Define de quanto em quanto tempo a lista de próximos ônibus é anunciada.
+            </p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function TopBar({
   timeStr,
   dateStr,
   voiceOn,
+  voiceIntervalMinutes,
   onToggleVoice,
   onAnnounceNow,
+  onChangeVoiceInterval,
 }: {
   timeStr: string;
   dateStr: string;
   voiceOn: boolean;
+  voiceIntervalMinutes: number;
   onToggleVoice: () => void;
   onAnnounceNow: () => void;
+  onChangeVoiceInterval: (minutes: number) => void;
 }) {
   return (
     <header className="w-full border-b border-white/10 bg-navy-deep/60 backdrop-blur">
@@ -325,6 +458,12 @@ function TopBar({
                 Anunciar
               </button>
             ) : null}
+            <AccessibilitySettings
+              voiceOn={voiceOn}
+              voiceIntervalMinutes={voiceIntervalMinutes}
+              onToggleVoice={onToggleVoice}
+              onChangeVoiceInterval={onChangeVoiceInterval}
+            />
           </div>
           <div className="text-right leading-tight">
             <p className="font-display text-4xl tabular-nums text-white">{timeStr}</p>
