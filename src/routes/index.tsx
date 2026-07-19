@@ -310,14 +310,18 @@ function TopBar({
   timeStr,
   dateStr,
   voiceOn,
+  voiceIntervalMinutes,
   onToggleVoice,
   onAnnounceNow,
+  onChangeVoiceInterval,
 }: {
   timeStr: string;
   dateStr: string;
   voiceOn: boolean;
+  voiceIntervalMinutes: number;
   onToggleVoice: () => void;
   onAnnounceNow: () => void;
+  onChangeVoiceInterval: (minutes: number) => void;
 }) {
   return (
     <header className="w-full border-b border-white/10 bg-navy-deep/60 backdrop-blur">
