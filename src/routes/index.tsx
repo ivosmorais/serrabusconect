@@ -310,10 +310,12 @@ function ArrivingPane({ bus, variant }: { bus: Bus; variant: "mint" | "cyan" }) 
 function AccessibilitySettings({
   voiceOn,
   voiceIntervalMinutes,
+  onToggleVoice,
   onChangeVoiceInterval,
 }: {
   voiceOn: boolean;
   voiceIntervalMinutes: number;
+  onToggleVoice: () => void;
   onChangeVoiceInterval: (minutes: number) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -342,26 +344,12 @@ function AccessibilitySettings({
               <Label htmlFor="voice-toggle" className="text-base text-white">
                 Anúncios por voz
               </Label>
-              <button
-                type="button"
+              <Switch
                 id="voice-toggle"
-                aria-pressed={voiceOn}
-                onClick={() => {
-                  if (voiceOn && typeof window !== "undefined" && "speechSynthesis" in window) {
-                    window.speechSynthesis.cancel();
-                  }
-                  // Toggle is handled by the parent; we only close the dialog if needed.
-                }}
-                className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
-                  voiceOn ? "bg-mint" : "bg-white/20"
-                }`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-                    voiceOn ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
+                checked={voiceOn}
+                onCheckedChange={onToggleVoice}
+                aria-label="Ativar ou desativar anúncios por voz"
+              />
             </div>
             <p className="text-sm text-white/60">
               Quando ativados, os próximos ônibus são anunciados em voz alta em português.
