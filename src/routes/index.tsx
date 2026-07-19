@@ -145,6 +145,36 @@ function MonitorScreen() {
   const rotator = ROTATORS[rotatorIdx];
 
   const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceIntervalMinutes, setVoiceIntervalMinutes] = useState(2);
+
+  // Load accessibility preferences from localStorage after hydration.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("serra-smartbus-accessibility");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.voiceIntervalMinutes === "number") {
+          setVoiceIntervalMinutes(parsed.voiceIntervalMinutes);
+        }
+        if (typeof parsed.voiceOn === "boolean") {
+          setVoiceOn(parsed.voiceOn);
+        }
+      } catch {
+        // ignore malformed storage
+      }
+    }
+  }, []);
+
+  // Persist accessibility preferences whenever they change.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      "serra-smartbus-accessibility",
+      JSON.stringify({ voiceOn, voiceIntervalMinutes }),
+    );
+  }, [voiceOn, voiceIntervalMinutes]);
+
   const lastAnnouncedArrivingRef = useRef<string>("");
   const sortedRef = useRef(sorted);
   useEffect(() => {
