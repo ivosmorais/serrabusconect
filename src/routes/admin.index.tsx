@@ -19,6 +19,7 @@ import {
   PONTOS_MOVIMENTADOS,
   ALERTAS_ATIVOS,
 } from "@/lib/admin-mock";
+import { MonitorsMap } from "@/components/admin/monitors-map";
 
 export const Route = createFileRoute("/admin/")({
   component: DashboardPage,
@@ -70,31 +71,14 @@ function DashboardPage() {
             <Badge className="bg-mint/20 text-mint">{uptime}% online</Badge>
           </CardHeader>
           <CardContent>
-            <div className="relative h-80 overflow-hidden rounded-lg border border-white/10 bg-navy-deep grid-lines">
-              {MONITORES.map((m) => {
-                const x = ((m.lng + 40.32) / 0.15) * 100;
-                const y = ((-20.02 - m.lat) / -0.22) * 100;
-                const color =
-                  m.status === "online" ? "bg-mint" : m.status === "offline" ? "bg-alert" : "bg-warning";
-                return (
-                  <div
-                    key={m.id}
-                    className="absolute -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: `${Math.min(95, Math.max(5, x))}%`, top: `${Math.min(90, Math.max(10, y))}%` }}
-                    title={`${m.nome} — ${m.status}`}
-                  >
-                    <div className={`h-3 w-3 rounded-full ${color} ring-4 ring-white/10`} />
-                    <div className="mt-1 whitespace-nowrap rounded bg-navy-deep/80 px-1.5 py-0.5 text-[10px] text-white/80">
-                      {m.nome}
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="absolute bottom-3 left-3 flex gap-3 rounded-md bg-navy-deep/70 px-3 py-2 text-xs">
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-mint" /> Online</span>
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-warning" /> Manutenção</span>
-                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-alert" /> Offline</span>
-              </div>
+            <div className="overflow-hidden rounded-lg border border-white/10">
+              <MonitorsMap monitors={MONITORES} />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-3 text-xs text-white/70">
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-mint" /> Online</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-warning" /> Em manutenção</span>
+              <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-alert" /> Offline</span>
+              <span className="ml-auto text-white/50">Clique 1× para detalhes · 2× para gerenciar</span>
             </div>
           </CardContent>
         </Card>
