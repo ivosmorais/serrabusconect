@@ -6,6 +6,7 @@ import {
   FileText,
   Bus,
   ArrowLeft,
+  LogOut,
 } from "lucide-react";
 import {
   Sidebar,
@@ -20,6 +21,9 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { AdminAuthProvider, useAdminAuth } from "@/lib/admin-auth";
+import { AdminLogin } from "@/components/admin/admin-login";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -29,7 +33,7 @@ export const Route = createFileRoute("/admin")({
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: AdminLayout,
+  component: AdminRoute,
 });
 
 const items = [
@@ -41,6 +45,7 @@ const items = [
 
 function AdminSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const { logout } = useAdminAuth();
 
   return (
     <Sidebar collapsible="icon">
@@ -87,6 +92,15 @@ function AdminSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => { logout(); toast.success("Sessão encerrada"); }}
+                  className="flex items-center gap-2 text-white/70"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sair</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -95,7 +109,14 @@ function AdminSidebar() {
   );
 }
 
-function AdminLayout() {
+function AdminShell() {
+  const { authed, ready } = useAdminAuth();
+
+  if (!ready) {
+    return <div className="flex min-h-screen items-center justify-center bg-radial-navy text-white/60">Carregando...</div>;
+  }
+  if (!authed) return <AdminLogin />;
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-radial-navy">
@@ -114,5 +135,13 @@ function AdminLayout() {
         </div>
       </div>
     </SidebarProvider>
+  );
+}
+
+function AdminRoute() {
+  return (
+    <AdminAuthProvider>
+      <AdminShell />
+    </AdminAuthProvider>
   );
 }
